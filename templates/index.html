@@ -1,0 +1,497 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>School Management Portal</title>
+  <link rel="stylesheet" href="{{ url_for('static', filename='css/style.css') }}">
+</head>
+<body>
+
+  <!-- Fullscreen Login Overlay -->
+  <div id="loginOverlay">
+    <div class="login-box">
+      <div style="font-size: 38px; margin-bottom: 8px;">🔐</div>
+      <h2>Staff Authentication</h2>
+      <p>School Office Management System</p>
+      
+      <form id="loginForm">
+        <div class="login-input-group">
+          <label>Username</label>
+          <input type="text" id="loginUsername" placeholder="e.g. admin" required autocomplete="off">
+        </div>
+        <div class="login-input-group">
+          <label>Password</label>
+          <input type="password" id="loginPassword" placeholder="••••••••" required>
+        </div>
+        <button type="submit" class="btn-login">Unlock System</button>
+      </form>
+      <div id="loginMsg"></div>
+    </div>
+  </div>
+
+  <!-- Header -->
+  <header class="school-header">
+    <div class="brand-section">
+      <div class="school-logo">🏫</div>
+      <div class="school-info">
+        <h1 id="headerSchoolName">Loading School Name...</h1>
+        <p id="headerAffiliation">Loading details...</p>
+      </div>
+    </div>
+    <div class="session-badge" id="headerSession">📅 Session: Loading...</div>
+    <button class="btn-logout" onclick="logoutApp()">🔒 Lock / Logout</button>
+  </header>
+
+  <!-- Navigation Tabs -->
+  <nav class="tab-nav">
+    <button class="tab-btn active" id="btn-tab-admission" onclick="switchTab('admission-panel')">📝 New Admission</button>
+    <button class="tab-btn" id="btn-tab-students" onclick="switchTab('students-panel')">👥 Student Directory</button>
+    <button class="tab-btn" id="btn-tab-attendance" onclick="switchTab('attendance-panel')">📅 Daily Attendance</button>
+    <button class="tab-btn" id="btn-tab-results" onclick="switchTab('results-panel')">📊 Exam & Results</button>
+    <button class="tab-btn" id="btn-tab-settings" onclick="switchTab('settings-panel')">⚙️ School Profile</button>
+  </nav>
+
+  <!-- Main Content Panels -->
+  <main class="main-container">
+
+    <!-- PANEL 1: Admission Form -->
+    <section id="admission-panel" class="tab-panel active">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span id="formCardTitle">Student Admission / Registration Form</span>
+          <span style="font-size: 12px; color: var(--text-muted); font-weight: normal;">* Fields are mandatory</span>
+        </div>
+
+
+          <form id="studentRegistrationForm">
+          <input type="hidden" id="studentDbId" name="student_id">
+
+          <div class="form-grid">
+            <!-- Row 1 -->
+            <div class="form-group">
+              <label>SR / Admission No. <small style="color: #64748b;">(Optional)</small></label>
+              <input type="text" id="srNo" name="sr_no" placeholder="Leave blank if not allotted">
+            </div>
+
+            <div class="form-group">
+              <label>Class <span class="req">*</span></label>
+              <select id="studentClass" name="class" required>
+                <option value="" disabled selected>Select Class</option>
+                <option value="1st">1st</option><option value="2nd">2nd</option>
+                <option value="3rd">3rd</option><option value="4th">4th</option>
+                <option value="5th">5th</option><option value="6th">6th</option>
+                <option value="7th">7th</option><option value="8th">8th</option>
+                <option value="9th">9th</option><option value="10th">10th</option>
+                <option value="11th">11th</option><option value="12th">12th</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Section</label>
+              <select id="section" name="section">
+                <option value="A" selected>Section A</option>
+                <option value="B">Section B</option>
+                <option value="C">Section C</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Roll No.</label>
+              <input type="text" id="rollNo" name="roll_no" placeholder="e.g. 101">
+            </div>
+
+            <!-- Row 2: Names and Birth details together -->
+            <div class="form-group">
+              <label>First Name <span class="req">*</span></label>
+              <input type="text" id="firstName" name="first_name" placeholder="First Name" required>
+            </div>
+
+            <div class="form-group">
+              <label>Last Name</label>
+              <input type="text" id="lastName" name="last_name" placeholder="Last Name">
+            </div>
+
+            <div class="form-group">
+              <label>Date of Birth <span class="req">*</span></label>
+              <input type="date" id="dob" name="dob" required>
+            </div>
+
+            <div class="form-group">
+              <label>Gender <span class="req">*</span></label>
+              <select id="gender" name="gender" required>
+                <option value="Male" selected>Male</option>
+                <option value="Female">Female</option>
+                <option value="Other">Other</option>
+              </select>
+            </div>
+
+            <!-- Row 3: Parents & Contacts -->
+            <div class="form-group">
+              <label>Father's Name</label>
+              <input type="text" id="fatherName" name="father_name" placeholder="Father's Name">
+            </div>
+
+            <div class="form-group">
+              <label>Mother's Name</label>
+              <input type="text" id="motherName" name="mother_name" placeholder="Mother's Name">
+            </div>
+
+            <div class="form-group">
+              <label>Category</label>
+              <select id="category" name="category">
+                <option value="General" selected>General</option>
+                <option value="OBC">OBC</option>
+                <option value="SC">SC</option>
+                <option value="ST">ST</option>
+                <option value="EWS">EWS</option>
+              </select>
+            </div>
+
+            <div class="form-group">
+              <label>Mobile No.</label>
+              <input type="tel" id="mobileNo" name="mobile_no" maxlength="10" placeholder="10-digit number">
+            </div>
+
+            <!-- Row 4 -->
+            <div class="form-group">
+              <label>Aadhaar No.</label>
+              <input type="text" id="aadhaarNo" name="aadhaar_no" maxlength="12" placeholder="12-digit number">
+            </div>
+
+            <div class="form-group">
+              <label>Admission Date</label>
+              <input type="date" id="admissionDate" name="admission_date">
+            </div>
+
+            <div class="form-group">
+              <label>Status <small style="color: #64748b;">(Edit only)</small></label>
+              <select id="studentStatus" name="status" disabled style="background-color: #f1f5f9; cursor: not-allowed;">
+                <option value="Active" selected>Active</option>
+                <option value="TC Issued">TC Issued</option>
+                <option value="Inactive">Inactive</option>
+              </select>
+            </div>
+
+            <!-- Empty spacer to balance the 4th column -->
+            <div class="form-group"></div>
+
+            <!-- Row 5: Full Width Address -->
+            <div class="form-group full-width">
+              <label>Residential Address</label>
+              <textarea id="address" name="address" rows="2" placeholder="Address"></textarea>
+            </div>
+
+            <div class="btn-group">
+              <button type="button" class="btn btn-exit" onclick="confirmExit()">🚪 Exit App</button>
+              <button type="button" class="btn btn-cancel" id="cancelEditBtn" onclick="resetAdmissionForm()" style="display:none;">✖ Cancel</button>
+              <button type="button" class="btn btn-clear" onclick="resetAdmissionForm()">🧹 Clear Form</button>
+              <button type="submit" class="btn btn-submit" id="saveSubmitBtn">💾 Save Student</button>
+            </div>
+          </div>
+        </form>
+     
+        <div id="statusMsg"></div>
+      </div>
+    </section>
+
+    <!-- PANEL 2: Student Directory -->
+    <section id="students-panel" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>Registered Student Master Records</span>
+          <button class="btn btn-export" id="exportExcelBtn">📊 Export to Excel</button>
+        </div>
+
+        <div class="table-tools">
+          <input type="text" id="studentSearchInput" class="search-box" placeholder="🔍 Search by Name, SR, Roll, Mobile...">
+          <select id="classFilterSelect" style="padding: 8px;">
+            <option value="">All Classes</option>
+            <option value="1st">1st</option><option value="2nd">2nd</option>
+            <option value="3rd">3rd</option><option value="4th">4th</option>
+            <option value="5th">5th</option><option value="6th">6th</option>
+            <option value="7th">7th</option><option value="8th">8th</option>
+            <option value="9th">9th</option><option value="10th">10th</option>
+            <option value="11th">11th</option><option value="12th">12th</option>
+          </select>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>SR No</th>
+                <th>Roll No</th>
+                <th>Class</th>
+                <th>Name</th>
+                <th>Father's Name</th>
+                <th>Mobile</th>
+                <th>Category</th>
+                <th>Status</th>
+                <th>Actions</th>
+              </tr>
+            </thead>
+            <tbody id="studentsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 3: Daily Attendance -->
+    <section id="attendance-panel" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>Daily Classroom Attendance</span>
+          <button class="btn btn-submit" id="saveAttendanceBtn">💾 Save Attendance</button>
+        </div>
+
+        <div class="table-tools">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="attClassSelect" style="padding: 8px;">
+              <option value="1st">Class 1st</option><option value="2nd">Class 2nd</option>
+              <option value="3rd">Class 3rd</option><option value="4th">Class 4th</option>
+              <option value="5th">Class 5th</option><option value="6th">Class 6th</option>
+              <option value="7th">Class 7th</option><option value="8th">Class 8th</option>
+              <option value="9th">Class 9th</option><option value="10th" selected>Class 10th</option>
+              <option value="11th">Class 11th</option><option value="12th">Class 12th</option>
+            </select>
+            <select id="attSectionSelect" style="padding: 8px;">
+              <option value="A" selected>Section A</option>
+              <option value="B">Section B</option>
+              <option value="C">Section C</option>
+            </select>
+            <input type="date" id="attDateInput" style="padding: 8px;">
+          </div>
+          <button type="button" class="btn" style="background: #e2e8f0; color: #334155;" id="markAllPresentBtn">Mark All Present</button>
+        </div>
+
+        <div class="table-container">
+          <table>
+            <thead>
+              <tr>
+                <th>Roll No</th>
+                <th>Student Name</th>
+                <th>Attendance Status</th>
+                <th>Remarks</th>
+              </tr>
+            </thead>
+            <tbody id="attendanceTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+<!-- PANEL 4: Results & Marksheet -->
+    <section id="results-panel" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>Subject-wise Examination Marks Entry</span>
+          <button class="btn" style="background: #7c3aed; color: white;" id="saveResultsBtn">💾 Save Marks</button>
+        </div>
+
+        <div class="table-tools">
+          <div style="display: flex; gap: 10px; flex-wrap: wrap;">
+            <select id="resClassSelect" style="padding: 8px;">
+              <option value="1st">Class 1st</option><option value="2nd">Class 2nd</option>
+              <option value="3rd">Class 3rd</option><option value="4th">Class 4th</option>
+              <option value="5th">Class 5th</option><option value="6th">Class 6th</option>
+              <option value="7th">Class 7th</option><option value="8th">Class 8th</option>
+              <option value="9th">Class 9th</option><option value="10th" selected>Class 10th</option>
+              <option value="11th">Class 11th</option><option value="12th">Class 12th</option>
+            </select>
+            <select id="resSubjectSelect" style="padding: 8px; font-weight: bold; min-width: 180px;"></select>
+            <select id="resExamSelect" style="padding: 8px;">
+              <option value="Unit Test 1">Unit Test 1</option>
+              <option value="Half Yearly" selected>Half Yearly Exam</option>
+              <option value="Annual">Annual Exam</option>
+            </select>
+            <select id="resYearSelect" style="padding: 8px;">
+              <option value="2026-2027" selected>Session 2026-2027</option>
+              <option value="2027-2028">Session 2027-2028</option>
+            </select>
+          </div>
+        </div>
+
+        <div class="table-container">
+          <table>
+        <thead>
+            <tr>
+              <th style="width: 80px;">Roll No</th>
+              <th>Student Name</th>
+              <th style="width: 130px;">Project / Internal</th>
+              <th style="width: 130px;">Practical</th>
+              <th style="width: 130px;">Theory</th>
+              <th style="width: 90px;">Total</th>
+              <th style="width: 110px;">Action</th>
+            </tr>
+          </thead>
+            <tbody id="resultsTableBody"></tbody>
+          </table>
+        </div>
+      </div>
+    </section>
+
+    <!-- PANEL 5: School Profile Settings -->
+    <section id="settings-panel" class="tab-panel">
+      <div class="panel-card">
+        <div class="panel-title">
+          <span>🏫 School Profile & Institution Settings</span>
+        </div>
+
+        <form id="schoolProfileForm">
+          <div class="form-grid">
+            <div class="form-group two-col">
+              <label>School / Institution Name <span class="req">*</span></label>
+              <input type="text" id="settingSchoolName" name="school_name" required>
+            </div>
+
+            <div class="form-group">
+              <label>School Code / U-DISE</label>
+              <input type="text" id="settingSchoolCode" name="school_code">
+            </div>
+
+            <div class="form-group two-col">
+              <label>Affiliation / Board Details</label>
+              <input type="text" id="settingAffiliation" name="affiliation_info">
+            </div>
+
+            <div class="form-group">
+              <label>Academic Session <span class="req">*</span></label>
+              <input type="text" id="settingSession" name="academic_session" required>
+            </div>
+
+            <div class="form-group">
+              <label>Official Contact No.</label>
+              <input type="tel" id="settingContact" name="contact_no" maxlength="10">
+            </div>
+
+            <div class="form-group">
+              <label>Official Email</label>
+              <input type="email" id="settingEmail" name="email" style="text-transform: none;">
+            </div>
+
+            <div class="form-group full-width">
+              <label>School Full Address</label>
+              <textarea id="settingAddress" name="address" rows="2"></textarea>
+            </div>
+
+            <div class="btn-group">
+              <button type="submit" class="btn btn-submit">💾 Update School Profile</button>
+            </div>
+          </div>
+        </form>
+        <div id="settingsStatusMsg"></div>
+      </div>
+
+      <div class="panel-card" style="margin-top: 20px;">
+        <div class="panel-title">
+          <span>🔑 Security Settings (Change Admin Password)</span>
+        </div>
+        <form id="changePasswordForm">
+          <div class="form-grid">
+            <div class="form-group">
+              <label>Old Password <span class="req">*</span></label>
+              <input type="password" id="oldPass" required>
+            </div>
+            <div class="form-group">
+              <label>New Password <span class="req">*</span></label>
+              <input type="password" id="newPass" required>
+            </div>
+            <div class="form-group">
+              <label>Confirm New Password <span class="req">*</span></label>
+              <input type="password" id="confirmPass" required>
+            </div>
+            <div class="btn-group">
+              <button type="submit" class="btn btn-submit">Save New Password</button>
+            </div>
+          </div>
+        </form>
+        <div id="passMsg"></div>
+      </div>
+    </section>
+
+<!-- Printable Marksheet Modal (Combined Terms) -->
+  <div id="reportCardModal" style="display:none; position:fixed; inset:0; background:rgba(0,0,0,0.7); z-index:99999; justify-content:center; align-items:center; padding:20px;">
+    <div style="background:#fff; width:100%; max-width:900px; max-height:92vh; overflow-y:auto; border-radius:8px; padding:25px; box-shadow:0 10px 30px rgba(0,0,0,0.3);">
+      
+      <!-- Printable Area -->
+      <div id="printableReportArea" style="border:2px solid #1e293b; padding:20px; font-family:'Segoe UI', sans-serif;">
+        <div style="text-align:center; border-bottom:2px solid #1e293b; padding-bottom:12px; margin-bottom:12px;">
+          <h2 id="rcSchoolName" style="margin:0; text-transform:uppercase; color:#1e3a8a;">SCHOOL NAME</h2>
+          <p id="rcSchoolDetails" style="margin:4px 0; font-size:13px; color:#475569;">Affiliation & Code</p>
+          <h3 id="rcExamTitle" style="margin:6px 0 0 0; font-size:14px; background:#e2e8f0; display:inline-block; padding:4px 18px; border-radius:4px; letter-spacing:0.5px;">ANNUAL PROGRESS REPORT CARD</h3>
+        </div>
+
+        <table style="width:100%; margin-bottom:12px; font-size:13px; border:none;">
+          <tr>
+            <td style="padding:3px; border:none;"><strong>Student Name:</strong> <span id="rcName">-</span></td>
+            <td style="padding:3px; border:none;"><strong>Roll No:</strong> <span id="rcRoll">-</span></td>
+            <td style="padding:3px; border:none;"><strong>Class:</strong> <span id="rcClass">-</span></td>
+          </tr>
+          <tr>
+            <td style="padding:3px; border:none;"><strong>Father's Name:</strong> <span id="rcFather">-</span></td>
+            <td style="padding:3px; border:none;"><strong>SR No:</strong> <span id="rcSr">-</span></td>
+            <td style="padding:3px; border:none;"><strong>DOB:</strong> <span id="rcDob">-</span></td>
+          </tr>
+        </table>
+
+        <!-- Combined Marks Table -->
+        <table style="width:100%; border-collapse:collapse; text-align:center; font-size:12px; margin-bottom:12px;">
+          <thead>
+            <tr style="background:#f1f5f9;">
+              <th rowspan="2" style="border:1px solid #334155; padding:6px; text-align:left;">Subject</th>
+              <th colspan="4" style="border:1px solid #334155; padding:6px; background:#e0e7ff; color:#1e3a8a;">TERM I (Half Yearly - 100)</th>
+              <th colspan="4" style="border:1px solid #334155; padding:6px; background:#fef3c7; color:#92400e;">TERM II (Annual Exam - 100)</th>
+              <th rowspan="2" style="border:1px solid #334155; padding:6px; width:80px; background:#f1f5f9;">Final (200)</th>
+            </tr>
+            <tr style="background:#f8fafc; font-size:11px;">
+              <th style="border:1px solid #334155; padding:4px;">Proj</th>
+              <th style="border:1px solid #334155; padding:4px;">Prac</th>
+              <th style="border:1px solid #334155; padding:4px;">Theory</th>
+              <th style="border:1px solid #334155; padding:4px; font-weight:bold;">Total</th>
+              <th style="border:1px solid #334155; padding:4px;">Proj</th>
+              <th style="border:1px solid #334155; padding:4px;">Prac</th>
+              <th style="border:1px solid #334155; padding:4px;">Theory</th>
+              <th style="border:1px solid #334155; padding:4px; font-weight:bold;">Total</th>
+            </tr>
+          </thead>
+          <tbody id="rcMarksBody"></tbody>
+          <tfoot>
+            <tr style="font-weight:bold; background:#f8fafc;">
+              <td style="border:1px solid #334155; padding:6px; text-align:left;">Grand Total:</td>
+              <td colspan="4" style="border:1px solid #334155; padding:6px; color:#1e3a8a;"><span id="rcGrandHY">0</span></td>
+              <td colspan="4" style="border:1px solid #334155; padding:6px; color:#92400e;"><span id="rcGrandANN">0</span></td>
+              <td style="border:1px solid #334155; padding:6px;"><span id="rcGrandFinal">0</span> / <span id="rcMaxMarks">0</span></td>
+            </tr>
+            <tr style="font-weight:bold; background:#f1f5f9;">
+              <td colspan="9" style="border:1px solid #334155; padding:6px; text-align:right;">Overall Percentage (%):</td>
+              <td style="border:1px solid #334155; padding:6px; color:#1e3a8a; font-size:13px;"><span id="rcPercentage">0</span>%</td>
+            </tr>
+          </tfoot>
+        </table>
+
+        <div style="display:flex; justify-content:space-between; margin-top:40px; font-size:12px; font-weight:bold;">
+          <div>Class Teacher Signature</div>
+          <div>Principal Signature</div>
+        </div>
+      </div>
+
+      <!-- Action Buttons -->
+      <div style="display:flex; justify-content:flex-end; gap:10px; margin-top:15px;">
+        <button type="button" class="btn btn-clear" onclick="closeReportCard()">✖ Close</button>
+        <button type="button" class="btn btn-submit" onclick="printReportCard()">🖨️ Print Marksheet</button>
+      </div>
+    </div>
+  </div>
+
+  </main>
+
+  <!-- Footer -->
+  <footer class="app-footer">
+    <p>© 2026 School Management System • Designed & Developed by Diwan Singh Rawal</p>
+  </footer>
+
+  <!-- Only ONE single unified JS file -->
+  <script src="{{ url_for('static', filename='js/app.js') }}"></script>
+</body>
+</html>

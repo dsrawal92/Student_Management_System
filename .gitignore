@@ -1,0 +1,21 @@
+# Virtual Environments
+.venv/
+venv/
+ENV/
+
+# Python cache & bytecode
+__pycache__/
+*.py[cod]
+*$py.class
+
+# Local SQLite Database (taaki real data push na ho)
+school_data.db
+
+# PyInstaller build files & Executables
+dist/
+build/
+*.spec
+
+# OS files
+Thumbs.db
+.DS_Store
