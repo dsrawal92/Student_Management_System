@@ -1,6 +1,7 @@
 import webview
 import threading
 import sys
+import os
 import time
 from app import app
 
@@ -19,7 +20,7 @@ if __name__ == '__main__':
 
     # 3. Clean desktop window
     window = webview.create_window(
-        title="School Office Management System",
+        title="Student Management System by Rawal DS",
         url="http://127.0.0.1:5000",
         width=1280,
         height=800,
