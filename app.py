@@ -25,7 +25,6 @@ def favicon():
 # 1. SCHOOL PROFILE ENDPOINTS
 # ==========================================
 
-
 @app.route('/api/school-profile', methods=['GET'])
 def get_school_profile():
     try:
@@ -73,7 +72,6 @@ def update_school_profile():
 # 2. STUDENT DIRECTORY (CRUD) ENDPOINTS
 # ==========================================
 
-
 @app.route('/api/students', methods=['GET'])
 def get_students():
     try:
@@ -104,6 +102,7 @@ def save_student():
         # SR No: agar blank ho toh database me None (NULL) store hoga
         raw_sr = data.get('sr_no', '').strip().upper()
         sr_no = raw_sr if raw_sr else None
+        session_year = data.get('session_year') or '2026-2027'
 
         # Mandatory fields validation
         if not f_name or not s_class or not s_dob:
@@ -183,8 +182,8 @@ def save_student():
                     INSERT INTO students (
                         sr_no, roll_no, class, section, first_name, last_name,
                         dob, gender, father_name, mother_name, category,
-                        mobile_no, aadhaar_no, address, admission_date, status
-                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                        mobile_no, aadhaar_no, address, admission_date, status, session_year
+                    ) VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 ''', (
                     sr_no,
                     data.get('roll_no', '').strip() or None,
@@ -201,7 +200,8 @@ def save_student():
                     aadhaar,
                     data.get('address', '').strip().upper(),
                     data.get('admission_date', ''),
-                    data.get('status', 'Active')
+                    data.get('status', 'Active'),
+                    session_year
                 ))
                 msg = "Naya student registration safalta se save ho gaya!"
             conn.commit()
@@ -532,8 +532,6 @@ def get_student_report_card():
 # ==========================================
 # 6. AUTHENTICATION & PASSWORD ENDPOINTS
 # ==========================================
-
-
 @app.route('/api/login', methods=['POST'])
 def login():
     try:
@@ -556,7 +554,40 @@ def login():
             return jsonify({"status": "error", "message": "Galat Username ya Password!"}), 401
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
+# ==========================================
+# AUTH: FORGOT & RESET PASSWORD
+# ==========================================
+MASTER_RECOVERY_PIN = "1234"  # Default recovery PIN
 
+@app.route('/api/auth/reset-password', methods=['POST'])
+def reset_password():
+    data = request.get_json() or {}
+    pin = str(data.get('recovery_pin', '')).strip()
+    new_password = str(data.get('new_password', '')).strip()
+
+    if not pin or not new_password:
+        return jsonify({'status': 'error', 'message': 'PIN aur naya password dono zaroori hain!'}), 400
+
+    if pin != MASTER_RECOVERY_PIN:
+        return jsonify({'status': 'error', 'message': 'Galat Recovery PIN!'}), 403
+
+    if len(new_password) < 4:
+        return jsonify({'status': 'error', 'message': 'Password kam se kam 4 aksharon ka hona chahiye!'}), 400
+
+    try:
+        with get_db_connection() as conn:
+            # Agar users table use hoti hai:
+            conn.execute("UPDATE users SET password = ? WHERE role = 'admin' OR username = 'admin'", (new_password,))
+            conn.commit()
+        return jsonify({'status': 'success', 'message': 'Password safalta se reset ho gaya! Naye password se login karein.'})
+    except Exception:
+        try:
+            with get_db_connection() as conn:
+                conn.execute("UPDATE school_profile SET admin_password = ?", (new_password,))
+                conn.commit()
+            return jsonify({'status': 'success', 'message': 'Password safalta se reset ho gaya!'})
+        except Exception as e:
+            return jsonify({'status': 'error', 'message': f'Database error: {str(e)}'}), 500
 
 @app.route('/api/change-password', methods=['POST'])
 def change_password():
@@ -588,6 +619,62 @@ def change_password():
     except Exception as e:
         return jsonify({"status": "error", "message": str(e)}), 500
 
+@app.route('/api/students/bulk-promote', methods=['POST'])
+def bulk_promote_students():
+    data = request.get_json()
+    student_ids = data.get('student_ids', [])
+    target_class = data.get('target_class')
+    session_year = data.get('session_year')
+    
+    if not student_ids or not target_class:
+        return jsonify({'status': 'error', 'message': 'Students ya target class select nahi ki gayi hai!'}), 400
+
+    try:
+        conn = get_db_connection()
+        cursor = conn.cursor()
+        
+        # Multiple students ki class aur session update karna
+        placeholders = ','.join(['?'] * len(student_ids))
+        query = f"UPDATE students SET class = ?, session_year = ? WHERE id IN ({placeholders})"
+        
+        params = [target_class, session_year] + student_ids
+        cursor.execute(query, params)
+        conn.commit()
+        conn.close()
+        
+        return jsonify({
+            'status': 'success', 
+            'message': f'Successfully {len(student_ids)} students ko Class {target_class} me update kar diya gaya hai!'
+        })
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+@app.route('/api/students/bulk-status', methods=['POST'])
+def bulk_status_change():
+    data = request.get_json()
+    student_ids = data.get('student_ids', [])
+    new_status = data.get('status')  # 'Active' or 'Inactive'
+
+    if not student_ids or not new_status:
+        return jsonify({'status': 'error', 'message': 'Invalid selection!'}), 400
+
+    try:
+        with get_db_connection() as conn:
+            placeholders = ','.join(['?'] * len(student_ids))
+            conn.execute(f"UPDATE students SET status = ? WHERE id IN ({placeholders})", [new_status] + student_ids)
+            conn.commit()
+
+        msg = f"{len(student_ids)} students ko Dropbox me move kar diya gaya!" if new_status == 'Inactive' else f"{len(student_ids)} students ko Active kar diya gaya!"
+        return jsonify({'status': 'success', 'message': msg})
+    except Exception as e:
+        return jsonify({'status': 'error', 'message': str(e)}), 500
+    
+    # app.py -> /api/results-matrix
+        students = conn.execute("""
+    SELECT id, roll_no, first_name, last_name 
+    FROM students 
+    WHERE class = ? AND status = 'Active'
+    ORDER BY CAST(roll_no AS INTEGER) ASC
+""", (cls,)).fetchall()
 
 if __name__ == '__main__':
     app.run(port=5000, debug=True)

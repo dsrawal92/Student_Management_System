@@ -1,9 +1,157 @@
+function syncClassDropdowns(category) {
+  const classMap = {
+    'primary': ['1st','2nd','3rd','4th','5th'],
+    'junior': ['6th','7th','8th'],
+    'highschool': ['9th','10th'],
+    'inter_6_12': ['6th','7th','8th','9th','10th','11th','12th'],
+    'inter_9_12': ['9th','10th','11th','12th'],
+    'all': ['1st','2nd','3rd','4th','5th','6th','7th','8th','9th','10th','11th','12th']
+  };
+  const classes = classMap[category] || classMap['all'];
+  // Sabhi class dropdowns (Admission, Filter, Attendance, Results) me yahi options render honge
+}
+
+// Modal Show/Hide Helpers
+window.openForgotPasswordModal = function() {
+  const modal = document.getElementById('forgotPasswordModal');
+  if (modal) modal.style.display = 'flex';
+};
+
+window.closeForgotPasswordModal = function() {
+  const modal = document.getElementById('forgotPasswordModal');
+  if (modal) modal.style.display = 'none';
+  const pinInput = document.getElementById('resetRecoveryPin');
+  const passInput = document.getElementById('resetNewPassword');
+  if (pinInput) pinInput.value = '';
+  if (passInput) passInput.value = '';
+};
+
+// API Call to Reset Password
+window.submitPasswordReset = async function() {
+  const pin = (document.getElementById('resetRecoveryPin')?.value || '').trim();
+  const newPass = (document.getElementById('resetNewPassword')?.value || '').trim();
+
+  if (!pin || !newPass) {
+    alert("Kripya PIN aur Naya Password dono darj karein!");
+    return;
+  }
+
+  try {
+    const res = await fetch('/api/auth/reset-password', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ recovery_pin: pin, new_password: newPass })
+    });
+
+    const data = await res.json();
+    if (res.ok && data.status === 'success') {
+      alert("✅ " + data.message);
+      closeForgotPasswordModal();
+      const loginMsg = document.getElementById('loginMsg');
+      if (loginMsg) loginMsg.innerHTML = '';
+    } else {
+      alert("❌ " + (data.message || "Reset request fail ho gayi!"));
+    }
+  } catch (err) {
+    alert("Server error: Password reset request complete nahi ho saki!");
+  }
+};
+
+window.selectGlobalSession = function(sessionStr) {
+  sessionStorage.setItem('sms_selected_session', sessionStr);
+  
+  // Card se active year check karein
+  const cardCur = document.getElementById('cardCurrentSession');
+  const currentActiveYear = cardCur ? cardCur.dataset.session : '';
+  const isSnapshot = (sessionStr !== currentActiveYear);
+
+  // Top header label update
+  const topLbl = document.getElementById('topActiveSessionLabel');
+  if (topLbl) {
+    topLbl.innerHTML = isSnapshot 
+      ? `${sessionStr} <span style="background: #f59e0b; color: #000; font-size: 11px; padding: 2px 6px; border-radius: 4px; margin-left: 5px;">Snapshot</span>` 
+      : `${sessionStr}`;
+  }
+
+  // Exact Button IDs from your index.html
+  const tabAdmission = document.getElementById('btn-tab-admission');
+  const tabAttendance = document.getElementById('btn-tab-attendance');
+
+  if (isSnapshot) {
+    // Snapshot (Purane saal) me Admissions aur Attendance ko HIDE karein
+    if (tabAdmission) tabAdmission.style.display = 'none';
+    if (tabAttendance) tabAttendance.style.display = 'none';
+
+    // Auto navigate to Student Directory
+    if (typeof switchTab === 'function') {
+      switchTab('students-panel');
+    }
+  } else {
+    // Current Active Year me SHOW karein
+    if (tabAdmission) tabAdmission.style.display = 'inline-block';
+    if (tabAttendance) tabAttendance.style.display = 'inline-block';
+  }
+
+  // Session screen band karein
+  const screen = document.getElementById('academicChoiceScreen');
+  if (screen) screen.style.display = 'none';
+
+  // Data reload
+  if (typeof fetchStudents === 'function') fetchStudents();
+  if (typeof loadResultsMatrix === 'function' && typeof currentActiveExam !== 'undefined' && currentActiveExam) {
+    loadResultsMatrix();
+  }
+};
+
+// ==========================================
+// DYNAMIC SESSION CALCULATOR & UDISE CHOICE
+// ==========================================
+function calculateDynamicSessions() {
+  const now = new Date();
+  const currentYear = now.getFullYear();
+  const currentMonth = now.getMonth() + 1; // 1-12
+
+  // Indian Academic Session starts in April (Month >= 4)
+  let startYear = (currentMonth >= 4) ? currentYear : currentYear - 1;
+
+  const currentSessionStr = `${startYear}-${startYear + 1}`;
+  const previousSessionStr = `${startYear - 1}-${startYear}`;
+
+  // Session Cards update
+  const cardCur = document.getElementById('cardCurrentSession');
+  const cardPrev = document.getElementById('cardPreviousSession');
+  const lblCur = document.getElementById('lblCurrentSession');
+  const lblPrev = document.getElementById('lblPreviousSession');
+
+  if (cardCur && lblCur) {
+    cardCur.dataset.session = currentSessionStr;
+    lblCur.textContent = currentSessionStr;
+  }
+  if (cardPrev && lblPrev) {
+    cardPrev.dataset.session = previousSessionStr;
+    lblPrev.textContent = previousSessionStr;
+  }
+}
+
+// Session Screen Display Handlers
+function showAcademicChoiceScreen() {
+  const screen = document.getElementById('academicChoiceScreen');
+  if (screen) {
+    calculateDynamicSessions();
+    const user = sessionStorage.getItem('sms_user') || 'School Admin';
+    const greet = document.getElementById('sessionUserGreeting');
+    if (greet) greet.textContent = user;
+    screen.style.display = 'block';
+  }
+}
+
 // ==========================================
 // 1. STATE & INITIALIZATION
 // ==========================================
 let activeUser = sessionStorage.getItem('sms_user');
 let allStudentsList = [];
 let filteredStudentsList = [];
+let currentActiveExam = null;
 
 window.addEventListener('DOMContentLoaded', () => {
   checkAuth();
@@ -41,7 +189,7 @@ function switchTab(panelId) {
 
   if (panelId === 'students-panel') fetchStudents();
   if (panelId === 'attendance-panel') loadAttendanceList();
-  if (panelId === 'results-panel') loadResultsMatrix();
+  if (panelId === 'results-panel' && currentActiveExam) loadResultsMatrix();
 }
 
 // ==========================================
@@ -50,11 +198,24 @@ function switchTab(panelId) {
 function checkAuth() {
   const overlay = document.getElementById('loginOverlay');
   if (!overlay) return;
-  overlay.style.display = activeUser ? 'none' : 'flex';
+
+  if (activeUser) {
+    overlay.style.display = 'none';
+    const savedSession = sessionStorage.getItem('sms_selected_session');
+    if (!savedSession) {
+      showAcademicChoiceScreen();
+    } else {
+      const topLbl = document.getElementById('topActiveSessionLabel');
+      if (topLbl) topLbl.textContent = savedSession;
+    }
+  } else {
+    overlay.style.display = 'flex';
+  }
 }
 
 function logoutApp() {
   sessionStorage.removeItem('sms_user');
+  sessionStorage.removeItem('sms_selected_session');
   activeUser = null;
   const pass = document.getElementById('loginPassword');
   if (pass) pass.value = '';
@@ -68,34 +229,8 @@ function confirmExit() {
 }
 
 // ==========================================
-// 4. STUDENT ADMISSION & INSTANT LOCAL EDIT
+// 4. STUDENT ADMISSION & EDIT FLOW
 // ==========================================
-// 1. Reset / New Admission Mode
-function resetAdmissionForm() {
-  const form = document.getElementById('studentRegistrationForm');
-  if (form) form.reset();
-
-  document.getElementById('studentDbId').value = '';
-  document.getElementById('formCardTitle').textContent = "Student Admission / Registration Form";
-  document.getElementById('saveSubmitBtn').textContent = "💾 Save Student";
-
-  // Lock status to Active during new registration
-  const statusSelect = document.getElementById('studentStatus');
-  if (statusSelect) {
-    statusSelect.value = 'Active';
-    statusSelect.disabled = true;
-    statusSelect.style.backgroundColor = '#f1f5f9';
-    statusSelect.style.cursor = 'not-allowed';
-  }
-  
-  const cancelBtn = document.getElementById('cancelEditBtn');
-  if (cancelBtn) cancelBtn.style.display = 'none';
-
-  const msg = document.getElementById('statusMsg');
-  if (msg) msg.textContent = '';
-}
-
-// 2. Edit Mode (Unlock Status)
 function editStudentById(studentId) {
   const s = allStudentsList.find(item => item.id === studentId);
   if (!s) {
@@ -103,41 +238,93 @@ function editStudentById(studentId) {
     return;
   }
 
+  // Switch Tab and reveal form container
   switchTab('admission-panel');
-
-  document.getElementById('studentDbId').value = s.id;
-  document.getElementById('srNo').value = s.sr_no || '';
-  document.getElementById('studentClass').value = s.class || '';
-  document.getElementById('section').value = s.section || 'A';
-  document.getElementById('rollNo').value = s.roll_no || '';
-  document.getElementById('firstName').value = s.first_name || '';
-  document.getElementById('lastName').value = s.last_name || '';
-  document.getElementById('dob').value = s.dob || '';
-  document.getElementById('gender').value = s.gender || 'Male';
-  document.getElementById('category').value = s.category || 'General';
-  document.getElementById('fatherName').value = s.father_name || '';
-  document.getElementById('motherName').value = s.mother_name || '';
-  document.getElementById('mobileNo').value = s.mobile_no || '';
-  document.getElementById('aadhaarNo').value = s.aadhaar_no || '';
-  document.getElementById('admissionDate').value = s.admission_date || '';
-  document.getElementById('address').value = s.address || '';
-
-  // Enable status dropdown during edit
-  const statusSelect = document.getElementById('studentStatus');
-  if (statusSelect) {
-    statusSelect.value = s.status || 'Active';
-    statusSelect.disabled = false;
-    statusSelect.style.backgroundColor = '#ffffff';
-    statusSelect.style.cursor = 'default';
+  const formContainer = document.getElementById('admissionFormContainer');
+  const toggleBtn = document.getElementById('toggleAdmissionBtn');
+  if (formContainer) formContainer.style.display = 'block';
+  if (toggleBtn) {
+    toggleBtn.innerHTML = '✖ Close Form';
+    toggleBtn.style.background = '#dc2626';
   }
 
-  document.getElementById('formCardTitle').textContent = `Update Record: ${s.first_name} (ID: ${s.id})`;
-  document.getElementById('saveSubmitBtn').textContent = "💾 Update Student";
-  
-  const cancelBtn = document.getElementById('cancelEditBtn');
-  if (cancelBtn) cancelBtn.style.display = 'inline-flex';
+  const setVal = (id, val) => {
+    const el = document.getElementById(id);
+    if (el) el.value = val !== undefined && val !== null ? val : '';
+  };
 
-  window.scrollTo({ top: 0, behavior: 'smooth' });
+  setVal('studentDbId', s.id);
+  setVal('srNo', s.sr_no);
+  setVal('studentClass', s.class);
+  if (document.getElementById('studentSection')) setVal('studentSection', s.section || 'Section A');
+  else setVal('section', s.section || 'Section A');
+
+  setVal('rollNo', s.roll_no);
+  setVal('firstName', s.first_name);
+  setVal('lastName', s.last_name);
+  setVal('dob', s.dob);
+  setVal('gender', s.gender || 'Male');
+  setVal('fatherName', s.father_name);
+  setVal('motherName', s.mother_name);
+  setVal('category', s.category || 'General');
+  setVal('mobileNo', s.mobile_no);
+  setVal('aadhaarNo', s.aadhaar_no);
+  setVal('admissionDate', s.admission_date);
+
+  const statusEl = document.getElementById('studentStatus');
+  if (statusEl) {
+    statusEl.value = s.status || 'Active';
+    statusEl.disabled = false;
+  }
+  setVal('address', s.address);
+
+  // Switch Buttons to Edit Mode
+  const btnClear = document.getElementById('btnClearForm');
+  const btnSave = document.getElementById('btnSaveStudent');
+  const btnCancel = document.getElementById('btnCancelEdit');
+  const btnUpdate = document.getElementById('btnUpdateStudent');
+
+  if (btnClear) btnClear.style.display = 'none';
+  if (btnSave) btnSave.style.display = 'none';
+  if (btnCancel) btnCancel.style.display = 'inline-block';
+  if (btnUpdate) btnUpdate.style.display = 'inline-block';
+}
+
+function cancelEditMode() {
+  resetAdmissionForm();
+  const formContainer = document.getElementById('admissionFormContainer');
+  const toggleBtn = document.getElementById('toggleAdmissionBtn');
+  if (formContainer) formContainer.style.display = 'none';
+  if (toggleBtn) {
+    toggleBtn.innerHTML = '➕ New Student';
+    toggleBtn.style.background = '#16a34a';
+  }
+  switchTab('students-panel');
+}
+
+function resetAdmissionForm() {
+  const form = document.getElementById('studentRegistrationForm');
+  if (form) form.reset();
+
+  const idField = document.getElementById('studentDbId');
+  if (idField) idField.value = '';
+
+  const statusEl = document.getElementById('studentStatus');
+  if (statusEl) {
+    statusEl.value = 'Active';
+    statusEl.disabled = true;
+  }
+
+  // Restore Default Add Mode Buttons
+  const btnClear = document.getElementById('btnClearForm');
+  const btnSave = document.getElementById('btnSaveStudent');
+  const btnCancel = document.getElementById('btnCancelEdit');
+  const btnUpdate = document.getElementById('btnUpdateStudent');
+
+  if (btnClear) btnClear.style.display = 'inline-block';
+  if (btnSave) btnSave.style.display = 'inline-block';
+  if (btnCancel) btnCancel.style.display = 'none';
+  if (btnUpdate) btnUpdate.style.display = 'none';
 }
 
 // ==========================================
@@ -161,14 +348,21 @@ function renderStudentsTable() {
   if (!tbody) return;
   tbody.innerHTML = '';
 
+  const selectAll = document.getElementById('selectAllStudents');
+  if (selectAll) selectAll.checked = false;
+  updateSelectedCount();
+
   if (filteredStudentsList.length === 0) {
-    tbody.innerHTML = `<tr><td colspan="9" style="text-align:center; padding: 20px;">Koi student record nahi mila.</td></tr>`;
+    tbody.innerHTML = `<tr><td colspan="10" style="text-align:center; padding: 20px;">Koi student record nahi mila.</td></tr>`;
     return;
   }
 
   filteredStudentsList.forEach(s => {
     const tr = document.createElement('tr');
     tr.innerHTML = `
+      <td style="text-align: center;">
+        <input type="checkbox" class="student-select-cb" value="${s.id}" onchange="updateSelectedCount()" style="cursor: pointer;">
+      </td>
       <td><strong>${s.sr_no || '<span style="color:#94a3b8;">Not Allotted</span>'}</strong></td>
       <td>${s.roll_no || '-'}</td>
       <td>${s.class} (${s.section || 'A'})</td>
@@ -177,14 +371,30 @@ function renderStudentsTable() {
       <td>${s.mobile_no || '-'}</td>
       <td>${s.category || 'General'}</td>
       <td><span class="badge ${s.status === 'Active' ? 'badge-active' : 'badge-inactive'}">${s.status || 'Active'}</span></td>
-      <td>
-        <button class="btn-sm btn-edit" onclick="editStudentById(${s.id})">✏️ Edit</button>
-        <button class="btn-sm btn-delete" onclick="deleteStudent(${s.id})">🗑️ Delete</button>
+      <td style="text-align: center;">
+        <button type="button" class="btn-sm btn-edit" onclick="editStudentById(${s.id})">✏️ Edit</button>
+        <button type="button" class="btn-sm btn-delete" onclick="deleteStudent(${s.id})">🗑️ Delete</button>
       </td>
     `;
     tbody.appendChild(tr);
   });
 }
+
+// Checkbox selection counter
+function updateSelectedCount() {
+  const checkedBoxes = document.querySelectorAll('.student-select-cb:checked');
+  const countBadge = document.getElementById('selectedCountBadge');
+  if (countBadge) countBadge.textContent = checkedBoxes.length;
+}
+
+// Select / Deselect All Handlers
+document.getElementById('selectAllStudents')?.addEventListener('change', (e) => {
+  const isChecked = e.target.checked;
+  document.querySelectorAll('.student-select-cb').forEach(cb => {
+    cb.checked = isChecked;
+  });
+  updateSelectedCount();
+});
 
 function applyFilters() {
   const query = (document.getElementById('studentSearchInput')?.value || '').toLowerCase();
@@ -260,21 +470,64 @@ async function loadAttendanceList() {
 }
 
 // ==========================================
-// 7. RESULTS FUNCTIONS (Subject-wise Entry & Auto-Load)
+// 7. RESULTS FUNCTIONS
 // ==========================================
+window.selectExamType = function(examType) {
+  currentActiveExam = examType;
+
+  const btnHalf = document.getElementById('btnExamHalfYearly');
+  const btnAnn = document.getElementById('btnExamAnnual');
+  const badge = document.getElementById('activeExamBadge');
+  const workspace = document.getElementById('resultsWorkspace');
+
+  if (examType === 'Half Yearly') {
+    if (btnHalf) {
+      btnHalf.style.background = '#2563eb';
+      btnHalf.style.color = '#ffffff';
+    }
+    if (btnAnn) {
+      btnAnn.style.background = '#f0fdf4';
+      btnAnn.style.color = '#166534';
+    }
+    if (badge) {
+      badge.style.background = '#eff6ff';
+      badge.style.color = '#1e40af';
+      badge.style.border = '1px solid #93c5fd';
+      badge.textContent = 'Active: HALF YEARLY';
+    }
+  } else {
+    if (btnAnn) {
+      btnAnn.style.background = '#16a34a';
+      btnAnn.style.color = '#ffffff';
+    }
+    if (btnHalf) {
+      btnHalf.style.background = '#eff6ff';
+      btnHalf.style.color = '#1e40af';
+    }
+    if (badge) {
+      badge.style.background = '#f0fdf4';
+      badge.style.color = '#166534';
+      badge.style.border = '1px solid #86efac';
+      badge.textContent = 'Active: ANNUAL EXAM';
+    }
+  }
+
+  if (workspace) workspace.style.display = 'block';
+  loadResultsMatrix();
+};
+
 async function loadResultsMatrix() {
   const cls = document.getElementById('resClassSelect')?.value || '10th';
   const subSelect = document.getElementById('resSubjectSelect');
   let selectedSub = subSelect?.value || '';
-  const exam = document.getElementById('resExamSelect')?.value || 'Half Yearly';
-  const year = document.getElementById('resYearSelect')?.value || '2026-2027';
+  const exam = currentActiveExam || 'Half Yearly';
+  const year = document.getElementById('globalSessionSelect')?.value || '2026-2027';
 
   try {
     const res = await fetch(`/api/results-matrix?class=${encodeURIComponent(cls)}&exam=${encodeURIComponent(exam)}&year=${encodeURIComponent(year)}&subject=${encodeURIComponent(selectedSub)}`);
     const data = await res.json();
 
     if (data.status === 'success') {
-      // Sync dynamic subject dropdown
       if (subSelect) {
         const currentSelection = subSelect.value;
         subSelect.innerHTML = '';
@@ -285,12 +538,10 @@ async function loadResultsMatrix() {
           subSelect.appendChild(opt);
         });
 
-        // Agar purani choice list mein hai toh wahi rakhein, nahi toh pehla subject
         if (data.available_subjects.includes(currentSelection)) {
           subSelect.value = currentSelection;
         } else {
           subSelect.value = data.available_subjects[0] || '';
-          // Agar subject default pehla set hua hai, toh uske saved marks fetch karna
           if (!selectedSub && subSelect.value) {
             return loadResultsMatrix();
           }
@@ -349,17 +600,25 @@ async function loadSchoolProfile() {
     const data = await res.json();
     if (data.status === 'success' && data.profile) {
       const p = data.profile;
-      document.getElementById('headerSchoolName').textContent = p.school_name || 'GOVERNMENT INTER COLLEGE';
-      document.getElementById('headerAffiliation').textContent = `${p.affiliation_info || ''} • Code: ${p.school_code || 'N/A'}`;
-      document.getElementById('headerSession').textContent = `📅 Session: ${p.academic_session || '2026-2027'}`;
+      
+      const headerName = document.getElementById('headerSchoolName');
+      if (headerName) headerName.textContent = p.school_name || 'GOVERNMENT INTER COLLEGE';
+      
+      const headerAff = document.getElementById('headerAffiliation');
+      if (headerAff) headerAff.textContent = `${p.affiliation_info || ''} • Code: ${p.school_code || 'N/A'}`;
+      
+      const setVal = (id, val) => {
+        const el = document.getElementById(id);
+        if (el) el.value = val || '';
+      };
 
-      document.getElementById('settingSchoolName').value = p.school_name || '';
-      document.getElementById('settingSchoolCode').value = p.school_code || '';
-      document.getElementById('settingAffiliation').value = p.affiliation_info || '';
-      document.getElementById('settingSession').value = p.academic_session || '';
-      document.getElementById('settingContact').value = p.contact_no || '';
-      document.getElementById('settingEmail').value = p.email || '';
-      document.getElementById('settingAddress').value = p.address || '';
+      setVal('settingSchoolName', p.school_name);
+      setVal('settingSchoolCode', p.school_code);
+      setVal('settingAffiliation', p.affiliation_info);
+      setVal('settingSession', p.academic_session);
+      setVal('settingContact', p.contact_no);
+      setVal('settingEmail', p.email);
+      setVal('settingAddress', p.address);
     }
   } catch (err) {
     console.error("Profile load error:", err);
@@ -367,48 +626,10 @@ async function loadSchoolProfile() {
 }
 
 // ==========================================
-// 9. FORM SUBMIT & EVENT LISTENERS SETUP
-// ==========================================
-function setupEventListeners() {
-  // Login Form
-  document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
-    e.preventDefault();
-    const u = document.getElementById('loginUsername').value.trim();
-    const p = document.getElementById('loginPassword').value.trim();
-    const msg = document.getElementById('loginMsg');
-
-    try {
-      const res = await fetch('/api/login', {
-        method: 'POST',
-        headers: { 'Content-Type': 'application/json' },
-        body: JSON.stringify({ username: u, password: p })
-      });
-      const data = await res.json();
-
-      if (res.ok && data.status === 'success') {
-        sessionStorage.setItem('sms_user', data.user.username);
-        activeUser = data.user.username;
-        if (msg) msg.textContent = '';
-        checkAuth();
-      } else {
-        if (msg) {
-          msg.style.color = '#dc2626';
-          msg.textContent = data.message || 'Login failed!';
-        }
-      }
-    } catch (err) {
-      if (msg) {
-        msg.style.color = '#dc2626';
-        msg.textContent = 'Server se connection fail hua!';
-      }
-    }
-  });
-
-// ==========================================
-// 10. REPORT CARD MODAL & PRINT (Global Scope)
+// 9. REPORT CARD MODAL & PRINT
 // ==========================================
 window.openReportCard = async function(studentId) {
-  const year = document.getElementById('resYearSelect')?.value || '2026-2027';
+  const year = document.getElementById('globalSessionSelect')?.value || '2026-2027';
 
   try {
     const res = await fetch(`/api/student-report-card?student_id=${studentId}&year=${encodeURIComponent(year)}`);
@@ -486,14 +707,75 @@ window.printReportCard = function() {
   window.location.reload();
 };
 
-// Student Registration Form Submit
+// ==========================================
+// 10. SETUP EVENT LISTENERS
+// ==========================================
+function setupEventListeners() {
+  // Login Form
+  document.getElementById('loginForm')?.addEventListener('submit', async (e) => {
+    e.preventDefault();
+    const u = document.getElementById('loginUsername').value.trim();
+    const p = document.getElementById('loginPassword').value.trim();
+    const msg = document.getElementById('loginMsg');
+
+    try {
+      const res = await fetch('/api/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: u, password: p })
+      });
+      const data = await res.json();
+
+      if (res.ok && data.status === 'success') {
+        sessionStorage.setItem('sms_user', data.user.username);
+        activeUser = data.user.username;
+        if (msg) msg.textContent = '';
+        checkAuth();
+    } else {
+      if (msg) {
+        msg.style.color = '#dc2626';
+        msg.innerHTML = `${data.message || 'Login failed!'} <a href="javascript:void(0)" onclick="openForgotPasswordModal()" style="color: #2563eb; text-decoration: underline; font-weight: 600; margin-left: 6px;">Forgot Password?</a>`;
+      }
+    }
+    } catch (err) {
+      if (msg) {
+        msg.style.color = '#dc2626';
+        msg.textContent = 'Server se connection fail hua!';
+      }
+    }
+  });
+
+  // Toggle Admission Form Show / Hide
+  const toggleBtn = document.getElementById('toggleAdmissionBtn');
+  const formContainer = document.getElementById('admissionFormContainer');
+
+  toggleBtn?.addEventListener('click', () => {
+    if (formContainer.style.display === 'none' || formContainer.style.display === '') {
+      formContainer.style.display = 'block';
+      toggleBtn.innerHTML = '✖ Close Form';
+      toggleBtn.style.background = '#dc2626';
+    } else {
+      formContainer.style.display = 'none';
+      toggleBtn.innerHTML = '➕ New Student';
+      toggleBtn.style.background = '#16a34a';
+    }
+  });
+
+  // Global Session Selector change trigger
+  document.getElementById('globalSessionSelect')?.addEventListener('change', () => {
+    if (currentActiveExam) {
+      loadResultsMatrix();
+    }
+    fetchStudents();
+  });
+
+  // Student Registration Form Submit (Handles both Add & Edit)
   document.getElementById('studentRegistrationForm')?.addEventListener('submit', async (e) => {
     e.preventDefault();
     const form = e.target;
     const formData = new FormData(form);
     const payload = Object.fromEntries(formData.entries());
 
-    // Disabled status field explicit attach
     const statusSelect = document.getElementById('studentStatus');
     payload.status = statusSelect ? statusSelect.value : 'Active';
 
@@ -508,11 +790,9 @@ window.printReportCard = function() {
       const result = await res.json();
 
       if (res.ok) {
-        // Pehle form reset karein taaki msg khali na ho
         resetAdmissionForm();
         fetchStudents();
 
-        // Ab success message display karein
         if (msgEl) {
           msgEl.style.color = '#16a34a';
           msgEl.style.fontWeight = 'bold';
@@ -522,7 +802,6 @@ window.printReportCard = function() {
           msgEl.style.marginTop = '12px';
           msgEl.textContent = '✅ ' + result.message;
 
-          // 4 second baad message softly hide ho jaye
           setTimeout(() => {
             msgEl.textContent = '';
             msgEl.style.background = 'transparent';
@@ -548,6 +827,235 @@ window.printReportCard = function() {
     }
   });
 
+  const classOrder = ['1st', '2nd', '3rd', '4th', '5th', '6th', '7th', '8th', '9th', '10th', '11th', '12th'];
+
+// 1. Filter Badalne par sirf (+1) aur (-1) Options Dikhana
+document.getElementById('classFilterSelect')?.addEventListener('change', (e) => {
+  applyFilters();
+  rebuildTargetClassOptions(e.target.value);
+});
+
+function rebuildTargetClassOptions(currentClass) {
+  const targetSelect = document.getElementById('targetClassSelect');
+  const actionBtn = document.getElementById('btnBatchAction');
+  if (!targetSelect || !actionBtn) return;
+
+  targetSelect.innerHTML = '';
+
+  // Agar "All Classes" chuni hai toh action block disable rakhein
+  if (!currentClass) {
+    targetSelect.innerHTML = '<option value="">-- Class Filter Chunein --</option>';
+    targetSelect.disabled = true;
+    actionBtn.disabled = true;
+    actionBtn.style.opacity = '0.5';
+    actionBtn.style.cursor = 'not-allowed';
+    return;
+  }
+
+  targetSelect.disabled = false;
+  actionBtn.disabled = false;
+  actionBtn.style.opacity = '1';
+  actionBtn.style.cursor = 'pointer';
+
+  const idx = classOrder.indexOf(currentClass);
+
+  // Next Class (+1)
+  if (idx !== -1 && idx + 1 < classOrder.length) {
+    const nextCls = classOrder[idx + 1];
+    const optNext = document.createElement('option');
+    optNext.value = nextCls;
+    optNext.textContent = `Next: Class ${nextCls}`;
+    targetSelect.appendChild(optNext);
+  } else if (idx === classOrder.length - 1) {
+    // 12th class ke liye Alumni
+    const optPass = document.createElement('option');
+    optPass.value = 'Passed Out';
+    optPass.textContent = `🎓 Passed Out (Alumni)`;
+    targetSelect.appendChild(optPass);
+  }
+
+  // Previous Class (-1) - Revert / Demote option
+  if (idx > 0) {
+    const prevCls = classOrder[idx - 1];
+    const optPrev = document.createElement('option');
+    optPrev.value = prevCls;
+    optPrev.textContent = `Previous: Class ${prevCls}`;
+    targetSelect.appendChild(optPrev);
+  }
+
+  // Button ka name aur color pehle option ke hisab se set karein
+  syncBulkActionButton();
+}
+
+// 2. Dropdown Change hone par Button ka Name aur Color Auto-Switch hona
+window.syncBulkActionButton = function() {
+  const currentClass = document.getElementById('classFilterSelect')?.value;
+  const targetClass = document.getElementById('targetClassSelect')?.value;
+  const btn = document.getElementById('btnBatchAction');
+  if (!btn || !currentClass || !targetClass) return;
+
+  const curIdx = classOrder.indexOf(currentClass);
+  const tarIdx = classOrder.indexOf(targetClass);
+
+  if (targetClass === 'Passed Out' || tarIdx > curIdx) {
+    // Promote Mode (+1)
+    btn.innerHTML = '🚀 Promote';
+    btn.style.background = '#2563eb'; // Blue
+    btn.dataset.actionType = 'promote';
+  } else {
+    // Demote Mode (-1)
+    btn.innerHTML = '🔻 Demote / Revert';
+    btn.style.background = '#dc2626'; // Red
+    btn.dataset.actionType = 'demote';
+  }
+};
+let currentDirectoryTab = 'Active'; // 'Active' or 'Inactive'
+
+window.switchDirectorySubTab = function(tabStatus) {
+  currentDirectoryTab = tabStatus;
+
+  const btnActive = document.getElementById('subTabActive');
+  const btnDrop = document.getElementById('subTabDropbox');
+  const activeControls = document.getElementById('activeActionControls');
+  const dropboxControls = document.getElementById('dropboxActionControls');
+
+  if (tabStatus === 'Active') {
+    btnActive.style.background = '#1e3a8a';
+    btnActive.style.color = '#ffffff';
+    btnDrop.style.background = '#e2e8f0';
+    btnDrop.style.color = '#475569';
+    if (activeControls) activeControls.style.display = 'flex';
+    if (dropboxControls) dropboxControls.style.display = 'none';
+  } else {
+    btnDrop.style.background = '#475569';
+    btnDrop.style.color = '#ffffff';
+    btnActive.style.background = '#e2e8f0';
+    btnActive.style.color = '#475569';
+    if (activeControls) activeControls.style.display = 'none';
+    if (dropboxControls) dropboxControls.style.display = 'flex';
+  }
+
+  applyFilters();
+};
+
+// Filter function me status separation + count update
+function applyFilters() {
+  const query = (document.getElementById('studentSearchInput')?.value || '').toLowerCase();
+  const selectedClass = document.getElementById('classFilterSelect')?.value || '';
+
+  // Tab Badge counts update
+  const activeTotal = allStudentsList.filter(s => (s.status || 'Active') === 'Active').length;
+  const dropTotal = allStudentsList.filter(s => s.status === 'Inactive').length;
+  
+  if (document.getElementById('activeCountBadge')) document.getElementById('activeCountBadge').textContent = activeTotal;
+  if (document.getElementById('dropboxCountBadge')) document.getElementById('dropboxCountBadge').textContent = dropTotal;
+
+  filteredStudentsList = allStudentsList.filter(s => {
+    const sStatus = s.status || 'Active';
+    const matchStatus = (sStatus === currentDirectoryTab);
+    const fullName = `${s.first_name} ${s.last_name || ''}`.toLowerCase();
+    const matchQuery = fullName.includes(query) ||
+      (s.sr_no && s.sr_no.toLowerCase().includes(query)) ||
+      (s.roll_no && s.roll_no.toLowerCase().includes(query)) ||
+      (s.mobile_no && s.mobile_no.includes(query));
+    const matchClass = selectedClass === '' || s.class === selectedClass;
+
+    return matchStatus && matchQuery && matchClass;
+  });
+
+  renderStudentsTable();
+}
+
+// Bulk Move to Dropbox / Restore Action
+window.executeStatusChange = async function(targetStatus) {
+  const checkboxes = document.querySelectorAll('.student-select-cb:checked');
+  const studentIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+
+  if (studentIds.length === 0) {
+    alert("Kripya kam se kam ek student select karein!");
+    return;
+  }
+
+  const promptText = (targetStatus === 'Inactive')
+    ? `Kya aap selected ${studentIds.length} students ko Dropbox (Inactive) me bhejna chahte hain?`
+    : `Kya aap selected ${studentIds.length} students ko wapas Active Directory me lana chahte hain?`;
+
+  if (!confirm(promptText)) return;
+
+  try {
+    const res = await fetch('/api/students/bulk-status', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ student_ids: studentIds, status: targetStatus })
+    });
+    const result = await res.json();
+    if (res.ok && result.status === 'success') {
+      alert("✅ " + result.message);
+      fetchStudents();
+    } else {
+      alert("Error: " + result.message);
+    }
+  } catch (err) {
+    alert("Server error: Status change nahi ho saka!");
+  }
+};
+
+// 3. Unified Batch Execution Function
+window.executeBatchClassChange = async function() {
+  const checkboxes = document.querySelectorAll('.student-select-cb:checked');
+  const studentIds = Array.from(checkboxes).map(cb => parseInt(cb.value));
+  const currentClass = document.getElementById('classFilterSelect')?.value;
+  const targetClass = document.getElementById('targetClassSelect')?.value;
+  const sessionYear = document.getElementById('globalSessionSelect')?.value || '2026-2027';
+  const btn = document.getElementById('btnBatchAction');
+  const actionType = btn?.dataset.actionType || 'promote';
+
+  if (!currentClass) {
+    alert("Kripya pehle Class filter select karein!");
+    return;
+  }
+
+  if (studentIds.length === 0) {
+    alert("Kripya kam se kam ek student select karein!");
+    return;
+  }
+
+  if (!targetClass) {
+    alert("Target class select nahi hai!");
+    return;
+  }
+
+  const confirmMsg = actionType === 'promote'
+    ? `🚀 Kya aap selected ${studentIds.length} students ko promote karke Class ${targetClass} me bhejna chahte hain?`
+    : `🔻 Kya aap selected ${studentIds.length} students ko wapas pichli Class ${targetClass} me demote karna chahte hain?`;
+
+  if (!confirm(confirmMsg)) return;
+
+  try {
+    const res = await fetch('/api/students/bulk-promote', {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({
+        student_ids: studentIds,
+        target_class: targetClass,
+        session_year: sessionYear,
+        action: actionType
+      })
+    });
+
+    const result = await res.json();
+    if (res.ok && result.status === 'success') {
+      alert("✅ " + result.message);
+      fetchStudents(); // Table auto reload
+    } else {
+      alert("Error: " + (result.message || "Operation fail ho gaya!"));
+    }
+  } catch (err) {
+    console.error("Bulk action error:", err);
+    alert("Server error: Request complete nahi ho saki!");
+  }
+};
+
   // Search & Filters
   document.getElementById('studentSearchInput')?.addEventListener('keyup', applyFilters);
   document.getElementById('classFilterSelect')?.addEventListener('change', applyFilters);
@@ -556,7 +1064,7 @@ window.printReportCard = function() {
   document.getElementById('attClassSelect')?.addEventListener('change', loadAttendanceList);
   document.getElementById('attSectionSelect')?.addEventListener('change', loadAttendanceList);
   document.getElementById('attDateInput')?.addEventListener('change', loadAttendanceList);
-  
+
   document.getElementById('markAllPresentBtn')?.addEventListener('click', () => {
     document.querySelectorAll('#attendanceTableBody input[value="Present"]').forEach(r => r.checked = true);
   });
@@ -596,13 +1104,11 @@ window.printReportCard = function() {
     }
   });
 
-// Results Filter Triggers
+  // Results Controls
   document.getElementById('resClassSelect')?.addEventListener('change', loadResultsMatrix);
   document.getElementById('resSubjectSelect')?.addEventListener('change', loadResultsMatrix);
-  document.getElementById('resExamSelect')?.addEventListener('change', loadResultsMatrix);
-  document.getElementById('resYearSelect')?.addEventListener('change', loadResultsMatrix);
 
-  // Save Subject Marks
+  // Save Subject Marks (Reads globalSession & currentActiveExam)
   document.getElementById('saveResultsBtn')?.addEventListener('click', async () => {
     const rows = document.querySelectorAll('#resultsTableBody tr');
     const marksData = [];
@@ -612,28 +1118,44 @@ window.printReportCard = function() {
       if (sid) {
         marksData.push({
           student_id: parseInt(sid),
-          project: tr.querySelector('.input-project')?.value.trim(),
-          practical: tr.querySelector('.input-practical')?.value.trim(),
-          theory: tr.querySelector('.input-theory')?.value.trim()
+          project: tr.querySelector('.input-project')?.value.trim() || '0',
+          practical: tr.querySelector('.input-practical')?.value.trim() || '0',
+          theory: tr.querySelector('.input-theory')?.value.trim() || '0'
         });
       }
     });
+
+    const selectedYear = document.getElementById('globalSessionSelect')?.value || '2026-2027';
+    const selectedExam = currentActiveExam || 'Half Yearly';
+    const selectedSub = document.getElementById('resSubjectSelect')?.value;
+
+    if (!selectedSub) {
+      alert("Kripya subject select karein!");
+      return;
+    }
 
     try {
       const res = await fetch('/api/results-matrix', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
-          year: document.getElementById('resYearSelect').value,
-          exam: document.getElementById('resExamSelect').value,
-          subject: document.getElementById('resSubjectSelect').value,
+          year: selectedYear,
+          exam: selectedExam,
+          subject: selectedSub,
           marks_data: marksData
         })
       });
-      const d = await res.json();
-      alert(d.message);
+
+      const data = await res.json();
+      if (data.status === 'success') {
+        alert("✅ Marks successfully save ho gaye!");
+        loadResultsMatrix();
+      } else {
+        alert("Error: " + (data.message || "Save nahi ho sake!"));
+      }
     } catch (err) {
-      alert("Marks save karne me dikkat aayi!");
+      console.error("Save marks error:", err);
+      alert("Server error: Marks save nahi hue!");
     }
   });
 
@@ -703,3 +1225,9 @@ window.printReportCard = function() {
     window.location.href = '/api/export-students-excel';
   });
 }
+
+// Global scope bindings for inline HTML handlers
+window.loadResultsMatrix = loadResultsMatrix;
+window.editStudentById = editStudentById;
+window.cancelEditMode = cancelEditMode;
+window.resetAdmissionForm = resetAdmissionForm;
